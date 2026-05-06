@@ -1,0 +1,66 @@
+name: Publish Chrome
+
+on:
+  workflow_dispatch:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter --version
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Update version
+        run: dart scripts/update_version.dart
+      - name: Build
+        run: flutter build web --release --csp --no-web-resources-cdn --dart-define=PLUTO_API_KEY=$PLUTO_API_KEY
+        env:
+          PLUTO_API_KEY: ${{ secrets.PLUTO_API_KEY }}
+      - name: Add LICENSE
+        run: cp LICENSE build/web
+      - name: Install ZIP tool
+        run: sudo apt-get install zip
+      - name: Archive
+        run: |
+          cd build
+          zip -r extension.zip web
+          cd ..
+      - name: Upload job artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: build/extension.zip
+
+  publish_chrome:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download job artifact
+        uses: actions/download-artifact@v4.1.7
+        with:
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R dist
+      - name: Chrome Extension upload & publish
+        uses: Passiverecords/chrome-extension-upload-action@1.4.1
+        with:
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          file-name: dist/artifact/extension.zip
+          app-id: ${{ secrets.CHROME_APP_ID }}
+          publish: true
+#      - name: Upload to Chrome Web Store
+#        uses: mobilefirstllc/cws-publish@latest
+#        with:
+#          action: 'publish'
+#          client_id: ${{ secrets.CHROME_CLIENT_ID }}
+#          client_secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+#          refresh_token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+#          extension_id: ${{ secrets.CHROME_APP_ID }}
+#          zip_file: dist/artifact/extension.zip

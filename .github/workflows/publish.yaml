@@ -1,0 +1,77 @@
+name: Publish
+
+on:
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter --version
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Update version
+        run: dart scripts/update_version.dart
+      - name: Build
+        run: flutter build web --release --csp --no-web-resources-cdn --dart-define=PLUTO_API_KEY=$PLUTO_API_KEY
+        env:
+          PLUTO_API_KEY: ${{ secrets.PLUTO_API_KEY }}
+      - name: Add LICENSE
+        run: cp LICENSE build/web
+      - name: Install ZIP tool
+        run: sudo apt-get install zip
+      - name: Archive
+        run: |
+          cd build
+          zip -r extension.zip web
+          cd ..
+      - name: Upload job artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: build/extension.zip
+
+  publish_chrome:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download job artifact
+        uses: actions/download-artifact@v4.1.7
+        with:
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R dist
+      - name: Chrome Extension upload & publish
+        uses: Passiverecords/chrome-extension-upload-action@1.4.1
+        with:
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          file-name: dist/artifact/extension.zip
+          app-id: ${{ secrets.CHROME_APP_ID }}
+          publish: true
+
+  publish_edge:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download job artifact
+        uses: actions/download-artifact@v4.1.7
+        with:
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R dist
+      - name: Edge Add-on upload & publish
+        uses: wdzeng/edge-addon@v1
+        with:
+          product-id: ${{ secrets.EDGE_PRODUCT_ID }}
+          zip-path: dist/artifact/extension.zip
+          client-id: ${{ secrets.EDGE_CLIENT_ID }}
+          api-key: ${{ secrets.EDGE_API_KEY }}

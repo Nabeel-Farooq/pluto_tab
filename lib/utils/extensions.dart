@@ -1,0 +1,309 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
+import 'package:super_clipboard/super_clipboard.dart';
+import 'package:universal_io/io.dart';
+import 'package:unsplash_client/unsplash_client.dart';
+
+import '../model/background_settings.dart';
+import '../model/color_gradient.dart';
+import '../model/widget_settings.dart';
+import 'memory_file.dart';
+import 'super_utils.dart';
+
+extension GradientExt on ColorGradient {
+  LinearGradient toLinearGradient() {
+    return LinearGradient(
+      colors: colors,
+      begin: begin,
+      end: end,
+      stops: stops,
+    );
+  }
+}
+
+extension StringExt on String {
+  String capitalize() {
+    return characters.first.toUpperCase() + substring(1);
+  }
+}
+
+extension AlignmentExt on AlignmentC {
+  Alignment get flutterAlignment {
+    switch (this) {
+      case AlignmentC.topLeft:
+        return Alignment.topLeft;
+      case AlignmentC.topCenter:
+        return Alignment.topCenter;
+      case AlignmentC.topRight:
+        return Alignment.topRight;
+      case AlignmentC.centerLeft:
+        return Alignment.centerLeft;
+      case AlignmentC.center:
+        return Alignment.center;
+      case AlignmentC.centerRight:
+        return Alignment.centerRight;
+      case AlignmentC.bottomLeft:
+        return Alignment.bottomLeft;
+      case AlignmentC.bottomCenter:
+        return Alignment.bottomCenter;
+      case AlignmentC.bottomRight:
+        return Alignment.bottomRight;
+    }
+  }
+
+  TextAlign get textAlign {
+    final alignment = flutterAlignment;
+    if (alignment.x == 0) {
+      return TextAlign.center;
+    } else if (alignment.x < 0) {
+      return TextAlign.left;
+    } else {
+      return TextAlign.right;
+    }
+  }
+}
+
+extension ColorFS on Color {
+  /// converts a normal [Color] to material color with proper shades mixed
+  /// with base color (white).
+  MaterialColor toMaterialColor() {
+    final strengths = <double>[.05];
+    final swatch = <int, Color>{};
+
+    for (var i = 1; i < 10; i++) {
+      strengths.add(0.1 * i);
+    }
+    for (final strength in strengths) {
+      final ds = 0.5 - strength;
+      swatch[(strength * 1000).round()] = Color.from(
+        red: r + ((ds < 0 ? r : (1 - r)) * ds).round(),
+        green: g + ((ds < 0 ? g : (1 - g)) * ds).round(),
+        blue: b + ((ds < 0 ? b : (1 - b)) * ds).round(),
+        alpha: 1,
+      );
+    }
+    return MaterialColor(toARGB32(), swatch);
+  }
+}
+
+extension ImageResolutionExt on ImageResolution {
+  Size? toSize() {
+    switch (this) {
+      case ImageResolution.auto:
+      case ImageResolution.original:
+        return null;
+      case ImageResolution.hd:
+        return const Size(1280, 720);
+      case ImageResolution.fullHd:
+        return const Size(1920, 1080);
+      case ImageResolution.quadHD:
+        return const Size(2560, 1440);
+      case ImageResolution.ultraHD:
+        return const Size(3840, 2160);
+      case ImageResolution.fiveK:
+        return const Size(5120, 2880);
+      case ImageResolution.eightK:
+        return const Size(7680, 4320);
+    }
+  }
+
+  String get sizeLabel {
+    final size = toSize();
+    if (size == null) {
+      return 'Window size';
+    } else {
+      return '${size.width.toInt()} x ${size.height.toInt()}';
+    }
+  }
+}
+
+extension DateTimeExt on DateTime {
+  DateTime copyWith({
+    int? day,
+    int? month,
+    int? year,
+    int? hour,
+    int? minute,
+    int? second,
+    int? millisecond,
+    int? microsecond,
+  }) {
+    return DateTime(
+      year ?? this.year,
+      month ?? this.month,
+      day ?? this.day,
+      hour ?? this.hour,
+      minute ?? this.minute,
+      second ?? this.second,
+      millisecond ?? this.millisecond,
+      microsecond ?? this.microsecond,
+    );
+  }
+
+  DateTime get startOfDay => DateTime(year, month, day);
+}
+
+extension TimerFormatExt on TimerFormat {
+  bool get showsSeconds =>
+      this == TimerFormat.descriptiveWithSeconds || this == TimerFormat.seconds || this == TimerFormat.countdown;
+}
+
+extension ImageRefreshRateExt on BackgroundRefreshRate {
+  /// Calculates the next refresh time for given refresh rate and
+  /// last refresh time.
+  /// For daily refresh rate, it will return the next day at 00:00:00.
+  /// For weekly refresh rate, it will return the start of the next week
+  /// at 00:00:00.
+  DateTime? nextUpdateTime(DateTime lastRefresh) {
+    switch (this) {
+      case BackgroundRefreshRate.never:
+      case BackgroundRefreshRate.newTab:
+        return null;
+      case BackgroundRefreshRate.minute:
+      case BackgroundRefreshRate.fiveMinute:
+      case BackgroundRefreshRate.fifteenMinute:
+      case BackgroundRefreshRate.thirtyMinute:
+      case BackgroundRefreshRate.hour:
+        return lastRefresh.add(duration);
+      case BackgroundRefreshRate.daily:
+        // Reset at midnight: 00:00:00
+        return lastRefresh.startOfDay.add(duration);
+      case BackgroundRefreshRate.weekly:
+        final now = DateTime.now();
+        // next monday
+        final DateTime nextMonday = DateTime(now.year, now.month, now.day + 7 - now.weekday + 1);
+        return nextMonday;
+    }
+  }
+}
+
+extension PhotoUrlsExt on PhotoUrls {
+  String rawWith({
+    Size? size,
+    double? devicePixelRatio,
+    String fit = 'crop',
+    String crop = 'entropy',
+  }) => raw
+      .replace(
+        queryParameters: {
+          ...raw.queryParameters,
+          'crop': crop,
+          'fit': fit,
+          if (size != null) ...{
+            'w': size.width.toStringAsFixed(0),
+            'h': size.height.toStringAsFixed(0),
+          },
+          if (devicePixelRatio != null) 'dpr': devicePixelRatio.toStringAsFixed(1),
+        },
+      )
+      .toString();
+}
+
+extension PhotoExt on Photo {
+  String rawWith({
+    Size? size,
+    double? devicePixelRatio,
+    String fit = 'crop',
+    String crop = 'entropy',
+  }) => urls.rawWith(
+    size: size,
+    devicePixelRatio: devicePixelRatio,
+    fit: fit,
+    crop: crop,
+  );
+}
+
+extension PlatformFileExt on PlatformFile {
+  MemoryXFile toMemoryXFile() => MemoryXFile(
+    bytes!,
+    mimeType: SuperUtils.lookupMimeTypeFrom(path ?? name, fileBytes: bytes),
+    path: kIsWeb ? name : path ?? name,
+    name: name,
+    length: size,
+  );
+}
+
+extension FileExt on File {
+  MemoryXFile toMemoryXFileSync() {
+    final bytes = readAsBytesSync();
+    return MemoryXFile(
+      bytes,
+      name: p.basename(path),
+      path: path,
+      mimeType: SuperUtils.lookupMimeTypeFrom(path, fileBytes: bytes),
+      length: lengthSync(),
+      lastModified: lastModifiedSync(),
+    );
+  }
+
+  Future<MemoryXFile> toMemoryXFile() async {
+    final bytes = await readAsBytes();
+    return MemoryXFile(
+      bytes,
+      name: p.basename(path),
+      path: path,
+      mimeType: SuperUtils.lookupMimeTypeFrom(path, fileBytes: bytes),
+      length: await length(),
+      lastModified: await lastModified(),
+    );
+  }
+}
+
+extension DataReaderFileExt on DataReaderFile {
+  Future<MemoryXFile?> toMemoryXFile([FileFormat? format]) async {
+    final Uint8List value = await readAll();
+    String name = fileName ?? 'unnamed';
+
+    // Check bytes range before sublisting.
+    if (value.length < defaultMagicNumbersMaxLength) {
+      return null;
+    }
+
+    final Uint8List header = value.sublist(0, defaultMagicNumbersMaxLength);
+
+    final String? mimeType = lookupMimeType(name, headerBytes: header);
+    if (mimeType == null) {
+      // Couldn't determine the mime type from bytes.
+      if (format == Formats.plainTextFile) {
+        // If the format is for plain text, the mime-type would fail because
+        // its just text. If case of an actual text file, the mime type
+        // wouldn't fail. So it is safe to assume that this is simply
+        // plain text (not a text file) copied to clipboard. In this case,
+        // We don't handle it as it is not a file. Hence we return null.
+        final valueString = utf8.decode(value, allowMalformed: true);
+        if (valueString.startsWith('<svg')) {
+          // svg file
+          name += '.svg';
+          return MemoryXFile(
+            value,
+            length: value.length,
+            name: name,
+            mimeType: lookupMimeType(name),
+          );
+        }
+        return null;
+      }
+
+      // We couldn't figure out the mime type. We can't read the file properly.
+      throw Exception('Failed to determine media type.');
+    }
+
+    if (p.extension(name).isEmpty) {
+      final String extension = SuperUtils.getEffectiveExtensionFromMime(mimeType);
+      name += '.$extension';
+    }
+
+    return MemoryXFile(
+      value,
+      length: fileSize,
+      name: name,
+      path: name,
+      mimeType: mimeType,
+    );
+  }
+}

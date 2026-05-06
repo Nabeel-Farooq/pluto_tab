@@ -1,0 +1,38 @@
+name: Deploy
+
+on:
+#  push:
+#    branches:
+#      - main
+#    paths:
+#      - '**.dart'
+#      - '**.yaml'
+#      - '**.yml'
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter --version
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Update version
+        run: dart scripts/update_version.dart
+      - name: Build
+        run: flutter build web --release --csp --no-web-resources-cdn --dart-define=PLUTO_API_KEY=$PLUTO_API_KEY
+        env:
+          PLUTO_API_KEY: ${{ secrets.PLUTO_API_KEY }}
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
