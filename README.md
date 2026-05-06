@@ -7,8 +7,6 @@
 
 ![Screenshot](.github/assets/banner2x.png)
 
-See live demo [here](https://birjuvachhani.github.io/pluto/).
-
 ## Features:
 - Select from wide range of background colors and gradients or use huge selection of curated background images from Unsplash.
 - Create your own collection of photos you like by adding photos to favorites.
@@ -31,7 +29,7 @@ See live demo [here](https://birjuvachhani.github.io/pluto/).
 
 #### Local Install
 
-1. Download `pluto.zip` from [Releases](https://github.com/birjuvachhani/pluto/releases)
+1. Download 
 2. Unzip the file
 3. In Chrome/Edge go to the extensions page (`chrome://extensions` or `edge://extensions`).
 4. Enable Developer Mode.
@@ -44,30 +42,4 @@ See live demo [here](https://birjuvachhani.github.io/pluto/).
 3. Run `flutter build web --release --csp`
 4. Load the `build/web` directory to your browser
 
-## Credits
 
-This project is inspired by [avinayak/minim](https://github.com/avinayak/minim)
-
-```
-MIT License
-
-Copyright © 2022 Birju Vachhani
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
