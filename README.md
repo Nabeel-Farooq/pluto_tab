@@ -20,13 +20,6 @@
 3. **Timer:** Always keep tabs on your running timer with Timer widget that also allows you to customize the message along with it.
 4. **Weather:** Keep an eye out on the surrounding weather with this minimal weather widget.
 
-## Installation
-
-### Install to Chrome/Edge
-
-<a href="https://chrome.google.com/webstore/detail/pluto/cjhgdglialdlkabijejcpddhjjagdkio"><img src=".github/assets/chrome_store_dark.png#gh-light-mode-only" height="60px"/></a>‎ ‎ ‎ ‎ 
-<a href="https://microsoftedge.microsoft.com/addons/detail/pluto/fhldfedplhnmdpfkdmdopelpbhjkmken"><img src=".github/assets/microsoft_store_dark.png#gh-dark-mode-only" height="60px"/></a>
-
 #### Local Install
 
 1. Download 
