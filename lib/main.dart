@@ -6,38 +6,67 @@ import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 
 import 'backend/backend_service.dart';
 import 'backend/rest_backend_service.dart';
+
 import 'home/home.dart';
+
 import 'resources/colors.dart';
+
 import 'utils/drop_delegate.dart';
 import 'utils/geocoding_service.dart';
 import 'utils/storage_manager.dart';
 import 'utils/weather_service.dart';
 
-void main() async {
-  final binding = WidgetsFlutterBinding.ensureInitialized();
-  for (var view in binding.renderViews) {
+final GetIt locator = GetIt.instance;
+
+late final PackageInfo packageInfo;
+
+Future<void> main() async {
+  WidgetsFlutterBinding binding =
+      WidgetsFlutterBinding.ensureInitialized();
+
+  _configureWindowRendering(binding);
+
+  await initialize();
+
+  runApp(const PlutoApp());
+}
+
+/// Disable automatic system UI adjustments
+/// for all render views.
+void _configureWindowRendering(
+  WidgetsFlutterBinding binding,
+) {
+  for (final view in binding.renderViews) {
     view.automaticSystemUiAdjustment = false;
   }
-  await initialize();
-  runApp(const MyApp());
 }
 
-late PackageInfo packageInfo;
+/// Load package information from platform.
+Future<void> loadPackageInfo() async {
+  packageInfo = await PackageInfo.fromPlatform();
+}
 
-Future<void> loadPackageInfo() async => packageInfo = await PackageInfo.fromPlatform();
-
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class PlutoApp extends StatefulWidget {
+  const PlutoApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<PlutoApp> createState() => _PlutoAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  final ValueNotifier<bool> _windowDragNotifier = ValueNotifier(false);
-  late final DragAndDropDelegate _dropDelegate = DragAndDropDelegate(
+class _PlutoAppState extends State<PlutoApp> {
+  final ValueNotifier<bool> _windowDragNotifier =
+      ValueNotifier<bool>(false);
+
+  late final DragAndDropDelegate _dropDelegate =
+      DragAndDropDelegate(
     dragNotifier: _windowDragNotifier,
   );
+
+  @override
+  void dispose() {
+    _windowDragNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,108 +74,155 @@ class _MyAppState extends State<MyApp> {
       debugHighlightObserverRebuild: false,
       child: MaterialApp(
         title: 'Pluto',
+
         debugShowCheckedModeBanner: false,
-        theme: buildTheme(context),
-        builder: (context, child) => DropRegion(
-          formats: Formats.standardFormats,
-          onDropEnter: (_) => _windowDragNotifier.value = true,
-          onDropLeave: (_) => _windowDragNotifier.value = false,
-          onDropOver: (_) => DropOperation.copy,
-          onPerformDrop: (_) async => _windowDragNotifier.value = false,
-          child: DragAndDropScope(
-            delegate: _dropDelegate,
-            child: child!,
-          ),
-        ),
+
+        theme: buildTheme(),
+
+        builder: _buildDropRegion,
+
         home: const HomeWrapper(
           key: ValueKey('HomeWrapper'),
         ),
       ),
     );
   }
+
+  Widget _buildDropRegion(
+    BuildContext context,
+    Widget? child,
+  ) {
+    return DropRegion(
+      formats: Formats.standardFormats,
+
+      onDropEnter: (_) {
+        _windowDragNotifier.value = true;
+      },
+
+      onDropLeave: (_) {
+        _windowDragNotifier.value = false;
+      },
+
+      onDropOver: (_) => DropOperation.copy,
+
+      onPerformDrop: (_) async {
+        _windowDragNotifier.value = false;
+      },
+
+      child: DragAndDropScope(
+        delegate: _dropDelegate,
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+  }
 }
 
+/// Initialize all app services.
 Future<void> initialize() async {
   await initializeBackend();
 
-  final storage = await SharedPreferencesStorageManager.create();
-  GetIt.instance.registerSingleton<LocalStorageManager>(storage);
-  GetIt.instance.registerSingleton<WeatherService>(OpenMeteoWeatherService());
-  GetIt.instance.registerSingleton<GeocodingService>(OpenMeteoGeocodingService());
+  final storage =
+      await SharedPreferencesStorageManager.create();
 
-  await GetIt.instance.allReady();
+  locator.registerSingleton<LocalStorageManager>(
+    storage,
+  );
+
+  locator.registerSingleton<WeatherService>(
+    OpenMeteoWeatherService(),
+  );
+
+  locator.registerSingleton<GeocodingService>(
+    OpenMeteoGeocodingService(),
+  );
+
+  await locator.allReady();
+
   await loadPackageInfo();
 }
 
+/// Initialize backend service.
 Future<void> initializeBackend() async {
-  // Initialize Celest
   final BackendService service = await getBackend();
 
-  await service.init(local: useLocalServer);
+  await service.init(
+    local: useLocalServer,
+  );
 
-  GetIt.instance.registerSingleton<BackendService>(service);
+  locator.registerSingleton<BackendService>(
+    service,
+  );
 }
 
-Future<BackendService> getBackend() async => RestBackendService();
+/// Return backend implementation.
+Future<BackendService> getBackend() async {
+  return RestBackendService();
+}
 
-ThemeData buildTheme(BuildContext context) {
+/// App theme configuration.
+ThemeData buildTheme() {
+  const textStyle = TextStyle(
+    color: AppColors.textColor,
+  );
+
   return ThemeData(
+    useMaterial3: true,
+
+    brightness: Brightness.dark,
+
+    scaffoldBackgroundColor: Colors.black,
+
+    dividerColor: AppColors.borderColor,
+
     colorScheme: ColorScheme.fromSeed(
       seedColor: CupertinoColors.systemBlue,
       brightness: Brightness.dark,
       primary: CupertinoColors.systemBlue,
     ),
-    useMaterial3: true,
-    scaffoldBackgroundColor: Colors.black,
-    // canvasColor: Colors.black,
-    // cardColor: Colors.black,
-    brightness: Brightness.dark,
-    dividerColor: AppColors.borderColor,
+
     scrollbarTheme: ScrollbarThemeData(
       thickness: WidgetStateProperty.all(4),
       thumbVisibility: WidgetStateProperty.all(true),
     ),
-    // fontFamily: FontFamilies.product,
+
     tooltipTheme: TooltipThemeData(
-      waitDuration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      waitDuration: const Duration(
+        milliseconds: 300,
+      ),
+
       verticalOffset: 18,
+
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+
       textStyle: const TextStyle(
         fontSize: 12,
         color: Colors.white60,
       ),
+
       decoration: ShapeDecoration(
+        color: Colors.grey.shade900,
+
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(4),
         ),
-        color: Colors.grey.shade900,
       ),
     ),
+
     textTheme: const TextTheme(
-      displayLarge: TextStyle(
-        color: AppColors.textColor,
-      ),
-      displayMedium: TextStyle(
-        color: AppColors.textColor,
-      ),
-      displaySmall: TextStyle(
-        color: AppColors.textColor,
-      ),
-      headlineMedium: TextStyle(
-        color: AppColors.textColor,
-      ),
-      headlineSmall: TextStyle(
-        color: AppColors.textColor,
-      ),
-      titleLarge: TextStyle(
-        color: AppColors.textColor,
-      ),
-      bodyLarge: TextStyle(
-        color: AppColors.textColor,
-      ),
-      bodyMedium: TextStyle(
-        color: AppColors.textColor,
-      ),
+      displayLarge: textStyle,
+      displayMedium: textStyle,
+      displaySmall: textStyle,
+
+      headlineMedium: textStyle,
+      headlineSmall: textStyle,
+
+      titleLarge: textStyle,
+
+      bodyLarge: textStyle,
+      bodyMedium: textStyle,
     ),
   );
 }
@@ -156,16 +232,20 @@ class DebugRender extends InheritedWidget {
 
   const DebugRender({
     super.key,
-    this.debugHighlightObserverRebuild = false,
     required super.child,
+    this.debugHighlightObserverRebuild = false,
   });
 
   static DebugRender? of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<DebugRender>();
+    return context
+        .dependOnInheritedWidgetOfExactType<DebugRender>();
   }
 
   @override
-  bool updateShouldNotify(covariant DebugRender oldWidget) {
-    return debugHighlightObserverRebuild != oldWidget.debugHighlightObserverRebuild;
+  bool updateShouldNotify(
+    covariant DebugRender oldWidget,
+  ) {
+    return debugHighlightObserverRebuild !=
+        oldWidget.debugHighlightObserverRebuild;
   }
 }
